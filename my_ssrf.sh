@@ -1,7 +1,7 @@
 #!/bin/bash
 
 DOMAIN=$1
-WORKSPACE=$HACKING_BASE/$DOMAIN/ssrf
+WORKSPACE=$HACKING_RESULT/$DOMAIN/ssrf
 CALLBACK="$2/ssrf/###"
 
 if [ ! -d "$WORKSPACE" ]; then
