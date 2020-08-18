@@ -1,35 +1,61 @@
 #!/bin/bash
 
-DOMAIN=$1
-WORKSPACE=$HACKING_RESULT/$DOMAIN
+domain=$1
+workspace=$HACKRESULT/$domain
 
 
 # Make working directory
-if [ ! -d "$WORKSPACE" ]; then
+if [ ! -d "$workspace" ]; then
 	echo "[*] Making directory for domain"
-	mkdir "$WORKSPACE"
+	mkdir -p "$workspace"
 fi
 
 
 # Enumerate subdomains
 echo "[*] Enumerating subdomains"
-if [ ! -e "$WORKSPACE/subdomains.txt" ]; then 
-	if ! amass enum -active -d $DOMAIN -o $WORKSPACE/subdomains.txt; then
+if [ ! -e "$workspace/subdomains" ]; then 
+	echo "[*] Get subdomains with 'amass'"
+	if ! amass enum -passive -d $domain -o $workspace/sd1 > /dev/null 2>&1; then
 		echo "[!] amass error"
-		exit
 	fi
+	
+	echo "[*] Get subdomains with 'subfinder'"
+	if ! subfinder -d $domain -o $workspace/sd2 > /dev/null 2>&1; then
+		echo "[!] subfinder error"
+	fi
+
+	echo "[*] Get subdomains with 'findomain'"
+	if ! findomain -t $domain -o $workspace/sd2 > /dev/null 2>&1; then
+		echo "[!] subfinder error"
+	fi
+
+	echo "[*] Merge subdomains from amass and subfinder"
+	cat $workspace/sd* | sort -u > $workspace/subdomains.txt
+	rm -f $workspace/sd*
 fi
 
 
 # Check live subdomains
 echo "[*] Checking live subdomains"
-if [ ! -e "$WORKSPACE/live.txt" ]; then 
-	cat $WORKSPACE/subdomains.txt | httprobe | tee $WORKSPACE/live.txt
-	# while read line; do
-	# 	subdomain=`echo $line | cut -d ' ' -f1`
-		
-		# if curl -m 2 "$subdomain" &> /dev/null; then
-		# 	echo "$line" >> $WORKSPACE/live.txt
-		# fi
-	# done < $WORKSPACE/subdomains.txt
+if [ ! -e "$workspace/hosts" ]; then 
+	httpx -l $workspace/subdomains.txt -status-code -title -silent -o $workspace/httpx.txt -no-color -silent
+	cat $workspace/httpx.txt | cut -d' ' -f1 > $workspace/httpx_ho.txt
 fi
+
+
+# Run all nuclei template against hosts
+'''
+workspace_nuclei="$workspace/nuclei-results"
+if [ ! -d $workspace_nuclei ]; then
+	echo "[*] Making directory for nuclei results"
+	mkdir -p $workspace_nuclei
+fi
+
+for dir in $HACKDATA/nuclei-templates/*/
+do
+	template=$(basename $dir)
+	if ! nuclei -l $workspace/httpx_ho.txt -t $dir -o "$workspace_nuclei/$template" > /dev/null 2>&1; then 
+		echo "[!] nuclei error with template: $template"
+	fi
+done
+'''
