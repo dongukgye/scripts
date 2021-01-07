@@ -5,69 +5,69 @@ workspace=''
 
 make_workspace() {
 	# Make workspace
-	# workspace="$1/nuclei-template"
-
 	if [ ! -d "$workspace" ]; then
-		echo "[*] Making workspace $workspace"
+		echo "[+] Making workspace $workspace"
 		mkdir -p "$workspace"
 	else
-		echo "[*] The workspace already exists"
+		echo "[+] The workspace already exists"
 	fi
 }
 
 enum_subdomains() {
-	echo "[*] Enumerating subdomains"
+	echo "[+] Enumerating subdomains"
+	
+	echo "[+] Working on $workspace"
 
-	echo "[*] Get subdomains with 'amass'"
-	if ! amass enum -passive -d $domain -o $workspace/sd1 > /dev/null 2>&1; then
+	echo "[+] Get subdomains with 'amass'"
+	if ! amass enum -passive -d $domain -o "$workspace/sd1" > /dev/null 2>&1; then
 		echo "[!] amass error"
 	fi
 
-	echo "[*] Get subdomains with 'subfinder'"
-	if ! subfinder -d $domain -o $workspace/sd2 > /dev/null 2>&1; then
+	echo "[+] Get subdomains with 'subfinder'"
+	if ! subfinder -d $domain -o "$workspace/sd2" > /dev/null 2>&1; then
 		echo "[!] subfinder error"
 	fi
 
-	echo "[*] Get subdomains with 'findomain'"
-	if ! findomain -t $domain -o $workspace/sd2 > /dev/null 2>&1; then
-		echo "[!] subfinder error"
+	echo "[+] Get subdomains with 'findomain'"
+	if ! assetfinder -subs-only $domain > "$workspace/sd3"; then
+		echo "[!] assetfinder error"
 	fi
 
-	echo "[*] Merge subdomains"
-	cat $workspace/sd* | sort -u > $workspace/subdomains.txt
+	# echo "[+] Merge subdomains"
+	cat "$workspace"/sd* | sort -u > "$workspace/subdomains.txt"
 
-	# echo "[*] Check if new subdomains presented"
-	# cat $workspace/../*/subdomains.txt | sort -u > $workspace/sd.prev
-
-	echo "[*] Remove temp files"
-	rm -f $workspace/sd*
+	# echo "[+] Remove temp files"
+	rm -f "$workspace"/sd*
 }
 
 
 probe_livedomains() {
 	# Check live subdomains
-	echo "[*] Probing live subdomains"
-	if ! httpx -l $workspace/subdomains.txt -status-code -title -o $workspace/livedomains_title.txt > /dev/null 2>&1; then
+	echo "[+] Probing live subdomains"
+	if ! httpx -l "$workspace"/subdomains.txt -status-code -title -o "$workspace"/livedomains_title.txt > /dev/null 2>&1; then
 		echo "[!] httpx error"
 	else
-		cat $workspace/livedomains_title.txt | cut -d' ' -f1 > $workspace/livedomains.txt
+		cat "$workspace"/livedomains_title.txt | cut -d' ' -f1 > "$workspace"/livedomains.txt
 	fi
 }
 
 run_nuclei() {
 	# Run nuclei
-	echo "[*] Running nuclei template"
+	echo "[+] Running nuclei template"
 	for template in cves panels payloads security-misconfiguration subdomain-takeover vulnerabilities
 	do 
-		nuclei -l $workspace/../livedomains.txt -t $template -o "$workspace/$template.txt" -silent -update-templates
+		nuclei -l "$workspace"/livedomains.txt -t "$BUGBOUNTY_HOME"/data/nuclei-templates/$template -o "$workspace"/"$template".txt -silent -update-templates
 	done
 }
 
+if [[ -z $1 ]]; then
+	echo "[!] Please provide a domain"
+	exit 0
+fi
 domain=$1
-date=`date +'%Y-%m-%d'`
-workspace="$RECONDATA/$domain/$date"
+workspace="$RECONDATA/$2.$domain"
 
 make_workspace
 enum_subdomains
 probe_livedomains
-run_nuclei
+# run_nuclei
